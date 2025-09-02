@@ -201,3 +201,85 @@
     )
 )
 
+;; VEHICLE & DRIVER MANAGEMENT
+;; =================================================================
+
+;; Register a vehicle
+(define-public (register-vehicle 
+    (vehicle-id (string-ascii 20))
+    (vehicle-type (string-ascii 16))
+    (capacity uint)
+    (license-plate (string-ascii 12)))
+    (begin
+        (asserts! (> capacity u0) ERR-INVALID-PRICE)
+        (asserts! (is-none (map-get? vehicles {vehicle-id: vehicle-id})) ERR-VEHICLE-NOT-REGISTERED)
+        
+        (map-set vehicles
+            {vehicle-id: vehicle-id}
+            {
+                owner: tx-sender,
+                vehicle-type: vehicle-type,
+                capacity: capacity,
+                license-plate: license-plate,
+                is-verified: false,
+                is-active: true,
+                created-at: block-height
+            }
+        )
+        (increment-stat "total-vehicles")
+        (ok true)
+    )
+)
+
+;; Verify vehicle (admin only)
+(define-public (verify-vehicle (vehicle-id (string-ascii 20)))
+    (let ((vehicle (unwrap! (map-get? vehicles {vehicle-id: vehicle-id}) ERR-VEHICLE-NOT-REGISTERED)))
+        (asserts! (is-contract-owner) ERR-UNAUTHORIZED)
+        
+        (map-set vehicles
+            {vehicle-id: vehicle-id}
+            (merge vehicle {is-verified: true})
+        )
+        (ok true)
+    )
+)
+
+;; Register as driver
+(define-public (register-driver
+    (name (string-ascii 64))
+    (license-number (string-ascii 20))
+    (phone-number (string-ascii 15)))
+    (begin
+        (map-set drivers
+            {driver-address: tx-sender}
+            {
+                name: name,
+                license-number: license-number,
+                phone-number: phone-number,
+                is-verified: false,
+                verification-date: u0,
+                rating: u80, ;; Default starting rating
+                total-trips: u0
+            }
+        )
+        (increment-stat "total-drivers")
+        (ok true)
+    )
+)
+
+;; Verify driver (admin only)
+(define-public (verify-driver (driver-address principal))
+    (let ((driver (unwrap! (map-get? drivers {driver-address: driver-address}) ERR-DRIVER-NOT-VERIFIED)))
+        (asserts! (is-contract-owner) ERR-UNAUTHORIZED)
+        
+        (map-set drivers
+            {driver-address: driver-address}
+            (merge driver {
+                is-verified: true,
+                verification-date: block-height
+            })
+        )
+        (ok true)
+    )
+)
+
